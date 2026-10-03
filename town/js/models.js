@@ -1,0 +1,400 @@
+import * as THREE from 'three';
+import { ModelBuilder } from './util.js';
+
+// 约定：模型前方为 +z，原点在地面。注意：朝 +z 时左手边是 +x。
+
+// ---------------- 骑手（坐姿） ----------------
+function rider(mb, c, oz = 0, oy = 0, hands = 0.37) {
+  const { skin, top, pants, shoes, helmet } = c;
+  mb.box(0.32, 0.16, 0.26, pants, 0, 0.92 + oy, -0.38 + oz);
+  for (const s of [-1, 1]) {
+    mb.limb(s * 0.1, 0.93 + oy, -0.32 + oz, s * 0.15, 0.98 + oy, 0.06 + oz, 0.075, pants);
+    mb.limb(s * 0.15, 0.98 + oy, 0.06 + oz, s * 0.13, 0.43 + oy, 0.12 + oz, 0.062, pants);
+    mb.box(0.11, 0.08, 0.24, shoes, s * 0.13, 0.40 + oy, 0.17 + oz);
+    mb.limb(s * 0.21, 1.42 + oy, -0.28 + oz, s * 0.25, 1.2 + oy, -0.05 + oz, 0.056, top);
+    mb.limb(s * 0.25, 1.2 + oy, -0.05 + oz, s * 0.27, 1.02 + oy, hands + oz, 0.048, top);
+    mb.sphere(0.045, skin, s * 0.27, 1.02 + oy, hands + oz, 1, 1, 1, 0);
+  }
+  mb.box(0.38, 0.52, 0.22, top, 0, 1.2 + oy, -0.33 + oz, 0.18);
+  mb.cyl(0.05, 0.05, 0.1, 6, skin, 0, 1.5 + oy, -0.27 + oz);
+  mb.sphere(0.11, skin, 0, 1.61 + oy, -0.24 + oz, 0.95, 1.08, 1, 1);
+  if (helmet) {
+    mb.sphere(0.135, helmet, 0, 1.66 + oy, -0.26 + oz, 1, 0.78, 1.08, 1);
+  } else {
+    mb.sphere(0.115, c.hair || '#1d1a17', 0, 1.65 + oy, -0.27 + oz, 1, 0.7, 1.05, 1);
+  }
+}
+
+// ---------------- 玩家的助动车 ----------------
+export function buildPlayerScooter(M) {
+  const root = new THREE.Group();
+  const lean = new THREE.Group();
+  root.add(lean);
+  const std = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, metalness: 0.08, ...o });
+  const BODY = std(0x2f63a8, { roughness: 0.35, metalness: 0.15 });
+  const DARK = std(0x2b2d30, { roughness: 0.7 });
+  const BLACK = std(0x141414, { roughness: 0.8 });
+  const METAL = std(0xb9bec3, { roughness: 0.3, metalness: 0.7 });
+  const WHITE = std(0xe9e7e2, { roughness: 0.4 });
+  const add = (parent, geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    m.rotation.set(rx, ry, rz);
+    m.castShadow = true;
+    parent.add(m);
+    return m;
+  };
+  const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+
+  function wheel() {
+    const g = new THREE.Group();
+    add(g, new THREE.TorusGeometry(0.185, 0.058, 8, 22), BLACK, 0, 0, 0, 0, Math.PI / 2, 0);
+    add(g, new THREE.CylinderGeometry(0.13, 0.13, 0.08, 14), METAL, 0, 0, 0, 0, 0, Math.PI / 2);
+    for (let i = 0; i < 5; i++) add(g, B(0.02, 0.24, 0.03), DARK, 0, 0, 0, (i / 5) * Math.PI, 0, 0);
+    return g;
+  }
+  const rearWheel = wheel();
+  rearWheel.position.set(0, 0.24, -0.62);
+  lean.add(rearWheel);
+
+  // 车身
+  add(lean, B(0.34, 0.34, 0.84), BODY, 0, 0.57, -0.47);
+  add(lean, B(0.3, 0.2, 0.26), BODY, 0, 0.6, -0.94, 0.45);
+  add(lean, B(0.36, 0.08, 0.86), DARK, 0, 0.38, -0.47);
+  add(lean, B(0.12, 0.14, 0.5), DARK, 0, 0.3, -0.62); // 电机/后叉
+  add(lean, B(0.34, 0.06, 0.52), DARK, 0, 0.34, 0.08);
+  add(lean, B(0.44, 0.72, 0.07), BODY, 0, 0.68, 0.41, -0.22);
+  add(lean, B(0.4, 0.62, 0.03), DARK, 0, 0.66, 0.36, -0.22);
+  add(lean, B(0.3, 0.11, 0.72), BLACK, 0, 0.79, -0.43);
+  add(lean, B(0.32, 0.03, 0.26), METAL, 0, 0.76, -0.93);
+  add(lean, B(0.38, 0.28, 0.34), DARK, 0, 0.93, -0.9);
+  add(lean, B(0.39, 0.03, 0.35), WHITE, 0, 1.0, -0.9);
+  const tail = add(lean, B(0.16, 0.05, 0.02), std(0x8a1010, { emissive: 0xff2010, emissiveIntensity: 0.3 }), 0, 0.68, -1.05);
+  add(lean, B(0.16, 0.1, 0.01), std(0xf2c230), 0, 0.5, -1.02, 0.45); // 车牌
+
+  // 车头（转向）
+  const fork = new THREE.Group();
+  fork.position.set(0, 0, 0.62);
+  lean.add(fork);
+  const frontWheel = wheel();
+  frontWheel.position.set(0, 0.24, 0.05);
+  fork.add(frontWheel);
+  add(fork, B(0.14, 0.05, 0.42), BODY, 0, 0.5, 0.06);
+  for (const s of [-1, 1]) add(fork, new THREE.CylinderGeometry(0.022, 0.022, 0.42, 6), METAL, s * 0.07, 0.43, 0.0, -0.25);
+  add(fork, new THREE.CylinderGeometry(0.035, 0.035, 0.42, 6), DARK, 0, 0.8, -0.15, -0.35);
+  add(fork, B(0.46, 0.14, 0.2), BODY, 0, 1.0, -0.22);
+  add(fork, B(0.3, 0.06, 0.12), BLACK, 0, 1.08, -0.27); // 仪表
+  const headlight = add(fork, new THREE.CylinderGeometry(0.075, 0.08, 0.05, 14), std(0xfafaf2, { emissive: 0xfff6d8, emissiveIntensity: 0.4 }), 0, 0.98, -0.1, Math.PI / 2);
+  for (const s of [-1, 1]) {
+    add(fork, new THREE.CylinderGeometry(0.022, 0.022, 0.14, 6), BLACK, s * 0.29, 0.995, -0.26, 0, 0, Math.PI / 2);
+    add(fork, new THREE.CylinderGeometry(0.008, 0.008, 0.26, 4), METAL, s * 0.2, 1.17, -0.25, 0, 0, s * -0.2);
+    add(fork, B(0.12, 0.07, 0.02), BLACK, s * 0.235, 1.3, -0.255);
+    add(fork, B(0.105, 0.055, 0.005), std(0x9fb2c4, { roughness: 0.1, metalness: 0.8 }), s * 0.235, 1.3, -0.267);
+    add(fork, B(0.05, 0.03, 0.04), std(0xffa21a, { emissive: 0xff8000, emissiveIntensity: 0.2 }), s * 0.21, 1.0, -0.12); // 转向灯
+  }
+
+  // 挡风被（B 键切换）
+  const quilt = new THREE.Group();
+  lean.add(quilt);
+  add(quilt, B(0.7, 0.78, 0.06), M.plaid, 0, 0.7, 0.5, -0.22);
+  for (const s of [-1, 1]) {
+    add(quilt, B(0.06, 0.58, 0.5), M.plaid, s * 0.36, 0.7, 0.24, -0.1);
+    add(quilt, B(0.18, 0.16, 0.24), M.plaid, s * 0.3, 1.0, 0.36);
+  }
+  quilt.visible = false;
+
+  // 骑手
+  const mb = new ModelBuilder();
+  rider(mb, { skin: '#d9a982', top: '#3c4450', pants: '#2f3b55', shoes: '#e6e6e2', helmet: '#f2c230' });
+  const riderMesh = new THREE.Mesh(mb.build(), M.vc);
+  riderMesh.castShadow = true;
+  lean.add(riderMesh);
+
+  return { root, lean, fork, frontWheel, rearWheel, quilt, tail, headlight };
+}
+
+// ---------------- NPC 车辆 ----------------
+export const CAR_COLORS = ['#e8e8e6', '#e8e8e6', '#c7c9cb', '#2b2d30', '#9b1d1d', '#3c5f8f', '#b9b2a3', '#5d6a72'];
+export const BIKE_COLORS = ['#e9e7e2', '#c4241d', '#2f63a8', '#f2c230', '#6fb7a8', '#e48fb0', '#2b2d30', '#9aa0a6'];
+const CLOTH = ['#3c4450', '#7a2e2e', '#2e5e3e', '#5a4a3a', '#2b3a5a', '#8a8a8a', '#b04a6a', '#c48a2a', '#e6e2d8', '#1e1e1e'];
+const PANTS = ['#2f3b55', '#1e1e1e', '#4a4a4a', '#5a4a3a', '#33405a'];
+const HELMET = ['#f2c230', '#e9e7e2', '#c4241d', '#2f63a8', null, null];
+const SKIN = ['#d9a982', '#c99470', '#e0b48f', '#b9845e'];
+
+function pick(a) { return a[(Math.random() * a.length) | 0]; }
+
+function wheelPair(mb, r, w, x, z) {
+  for (const s of [-1, 1]) {
+    mb.cyl(r, r, w, 12, '#1b1b1b', s * x, r, z, 0, 0, Math.PI / 2);
+    mb.cyl(r * 0.55, r * 0.55, w + 0.01, 10, '#9a9ea2', s * x, r, z, 0, 0, Math.PI / 2);
+  }
+}
+
+export function sedanGeo(color) {
+  const mb = new ModelBuilder();
+  mb.box(1.76, 0.6, 4.3, color, 0, 0.64, 0);
+  mb.box(1.7, 0.1, 4.2, '#262626', 0, 0.37, 0);
+  mb.box(1.58, 0.5, 2.25, '#25303a', 0, 1.18, -0.25);
+  mb.box(1.5, 0.07, 1.85, color, 0, 1.45, -0.3);
+  mb.box(1.6, 0.06, 0.9, color, 0, 0.95, 1.55, -0.12);
+  mb.box(1.6, 0.06, 0.6, color, 0, 0.98, -1.8, 0.1);
+  for (const s of [-1, 1]) {
+    mb.box(0.36, 0.12, 0.05, '#f4f2e6', s * 0.58, 0.76, 2.16);
+    mb.box(0.32, 0.12, 0.05, '#a1221b', s * 0.6, 0.8, -2.16);
+    mb.box(0.12, 0.08, 0.1, '#222', s * 0.92, 1.05, 0.75);
+  }
+  mb.box(1.8, 0.22, 0.14, '#3a3a3a', 0, 0.44, 2.18);
+  mb.box(1.8, 0.22, 0.14, '#3a3a3a', 0, 0.44, -2.18);
+  mb.box(0.62, 0.14, 0.03, '#1c1c1c', 0, 0.66, 2.16);
+  mb.box(0.4, 0.12, 0.02, '#f0f0f0', 0, 0.48, 2.26); // 车牌
+  wheelPair(mb, 0.31, 0.22, 0.8, 1.35);
+  wheelPair(mb, 0.31, 0.22, 0.8, -1.35);
+  return mb.build();
+}
+
+export function vanGeo(color) {
+  const mb = new ModelBuilder();
+  mb.box(1.6, 1.42, 3.8, color, 0, 1.04, 0);
+  mb.box(1.62, 0.5, 3.0, '#25303a', 0, 1.42, -0.35);
+  mb.box(1.5, 0.6, 0.06, '#2a3540', 0, 1.38, 1.9, -0.18);
+  mb.box(1.56, 0.06, 3.7, shadeHex(color, 0.9), 0, 1.77, -0.03);
+  mb.box(1.62, 0.18, 0.14, '#3a3a3a', 0, 0.42, 1.95);
+  mb.box(1.62, 0.18, 0.14, '#3a3a3a', 0, 0.42, -1.95);
+  for (const s of [-1, 1]) {
+    mb.box(0.28, 0.16, 0.04, '#f4f2e6', s * 0.56, 0.78, 1.91);
+    mb.box(0.18, 0.28, 0.04, '#a1221b', s * 0.68, 0.9, -1.91);
+  }
+  wheelPair(mb, 0.28, 0.2, 0.72, 1.25);
+  wheelPair(mb, 0.28, 0.2, 0.72, -1.25);
+  return mb.build();
+}
+
+export function truckGeo() {
+  const mb = new ModelBuilder();
+  const blue = '#2f5fa8';
+  mb.box(1.75, 1.45, 1.5, blue, 0, 1.28, 1.6);
+  mb.box(1.6, 0.55, 0.06, '#25303a', 0, 1.65, 2.36, -0.08);
+  mb.box(1.78, 0.5, 1.1, '#25303a', 0, 1.62, 1.55);
+  mb.box(1.85, 0.12, 3.2, '#3a3a3a', 0, 0.75, -0.75);
+  mb.box(1.85, 0.5, 0.06, blue, 0, 1.06, -2.33);
+  for (const s of [-1, 1]) mb.box(0.06, 0.5, 3.2, blue, s * 0.9, 1.06, -0.75);
+  mb.box(1.82, 0.2, 0.12, '#2a2a2a', 0, 0.55, 2.38);
+  for (const s of [-1, 1]) mb.box(0.3, 0.14, 0.04, '#f4f2e6', s * 0.6, 0.85, 2.37);
+  wheelPair(mb, 0.36, 0.24, 0.78, 1.6);
+  wheelPair(mb, 0.36, 0.28, 0.78, -1.3);
+  return mb.build();
+}
+
+function scooterBody(mb, color, oz = 0) {
+  const dark = '#2b2d30';
+  mb.cyl(0.24, 0.24, 0.1, 12, '#161616', 0, 0.24, -0.62 + oz, 0, 0, Math.PI / 2);
+  mb.cyl(0.24, 0.24, 0.1, 12, '#161616', 0, 0.24, 0.66 + oz, 0, 0, Math.PI / 2);
+  mb.box(0.34, 0.34, 0.84, color, 0, 0.57, -0.47 + oz);
+  mb.box(0.34, 0.06, 0.52, dark, 0, 0.34, 0.08 + oz);
+  mb.box(0.44, 0.72, 0.07, color, 0, 0.68, 0.41 + oz, -0.22);
+  mb.box(0.3, 0.11, 0.72, '#151515', 0, 0.79, -0.43 + oz);
+  mb.box(0.46, 0.14, 0.2, color, 0, 1.0, 0.4 + oz);
+  mb.box(0.14, 0.05, 0.42, color, 0, 0.5, 0.68 + oz);
+  mb.cyl(0.075, 0.08, 0.05, 10, '#fafaf2', 0, 0.98, 0.52 + oz, Math.PI / 2);
+  mb.box(0.14, 0.05, 0.02, '#a1221b', 0, 0.68, -1.04 + oz);
+  for (const s of [-1, 1]) mb.box(0.12, 0.06, 0.02, '#151515', s * 0.24, 1.3, 0.36 + oz);
+}
+
+export function ebikeRiderGeo(color) {
+  const mb = new ModelBuilder();
+  scooterBody(mb, color);
+  if (Math.random() < 0.4) mb.box(0.38, 0.28, 0.34, '#2b2d30', 0, 0.93, -0.9);
+  rider(mb, { skin: pick(SKIN), top: pick(CLOTH), pants: pick(PANTS), shoes: pick(['#e6e6e2', '#222', '#6b4a2a']), helmet: pick(HELMET) });
+  return mb.build();
+}
+
+export function parkedEbikeGeo(color) {
+  const mb = new ModelBuilder();
+  scooterBody(mb, color);
+  return mb.build();
+}
+
+export function trikeGeo(color) {
+  const mb = new ModelBuilder();
+  const dark = '#2b2d30';
+  mb.cyl(0.24, 0.24, 0.1, 12, '#161616', 0, 0.24, 1.15, 0, 0, Math.PI / 2);
+  mb.box(0.14, 0.05, 0.42, color, 0, 0.5, 1.17);
+  mb.box(0.5, 0.75, 0.08, color, 0, 0.72, 0.85, -0.2);
+  mb.box(0.5, 0.14, 0.2, color, 0, 1.02, 0.86);
+  mb.box(0.36, 0.06, 0.5, dark, 0, 0.36, 0.55);
+  mb.box(0.36, 0.3, 0.5, color, 0, 0.55, 0.0);
+  mb.box(0.3, 0.1, 0.45, '#151515', 0, 0.75, 0.05);
+  mb.box(1.15, 0.06, 1.45, '#3a3a3a', 0, 0.55, -0.85);
+  mb.box(1.15, 0.38, 0.05, color, 0, 0.77, -1.56);
+  mb.box(1.15, 0.38, 0.05, color, 0, 0.77, -0.14);
+  for (const s of [-1, 1]) mb.box(0.05, 0.38, 1.45, color, s * 0.575, 0.77, -0.85);
+  // 车斗里的货
+  if (Math.random() < 0.7) {
+    for (let i = 0; i < 4; i++) mb.box(0.4, 0.3, 0.4, pick(['#a5804f', '#2f6db5', '#3d9a4a', '#d23c2f', '#e6e2d8']), (i % 2 - 0.5) * 0.5, 0.75, -0.5 - Math.floor(i / 2) * 0.6);
+  }
+  wheelPair(mb, 0.25, 0.12, 0.5, -0.85);
+  rider(mb, { skin: pick(SKIN), top: pick(CLOTH), pants: pick(PANTS), shoes: '#222', helmet: null, hair: pick(['#1d1a17', '#8a8580']) }, 0.48, 0, 0.37);
+  return mb.build();
+}
+
+// ---------------- 行人 ----------------
+export function pedGeos(variant) {
+  const top = variant.top || pick(CLOTH), pants = variant.pants || pick(PANTS), skin = pick(SKIN);
+  const hair = variant.old ? pick(['#9a9792', '#cfccc7']) : pick(['#1d1a17', '#2b2118', '#3b2a1a']);
+  const body = new ModelBuilder();
+  body.box(0.36, 0.56, 0.22, top, 0, 1.18, 0);
+  body.box(0.34, 0.12, 0.2, pants, 0, 0.88, 0);
+  for (const s of [-1, 1]) {
+    body.box(0.09, 0.5, 0.11, top, s * 0.235, 1.18, 0, 0, 0, s * -0.06);
+    body.sphere(0.045, skin, s * 0.255, 0.9, 0, 1, 1, 1, 0);
+  }
+  body.cyl(0.05, 0.05, 0.08, 6, skin, 0, 1.49, 0);
+  body.sphere(0.11, skin, 0, 1.6, 0, 0.95, 1.1, 1, 1);
+  body.sphere(0.118, hair, 0, 1.64, -0.015, 1, variant.long ? 1.2 : 0.75, 1.05, 1);
+  if (variant.bag) body.box(0.08, 0.3, 0.26, pick(['#c4241d', '#2f6db5', '#e6e2d8']), -0.27, 0.95, 0);
+  const leg = new ModelBuilder();
+  leg.box(0.13, 0.78, 0.14, pants, 0, -0.39, 0);
+  leg.box(0.12, 0.07, 0.24, pick(['#e6e6e2', '#222', '#6b4a2a']), 0, -0.79, 0.04);
+  return { body: body.build(), leg: leg.build() };
+}
+
+// ---------------- 道具（实例化） ----------------
+export function treeGeo() {
+  const mb = new ModelBuilder();
+  mb.cyl(0.11, 0.17, 3.2, 7, '#5a4a3a', 0, 1.6, 0);
+  mb.limb(0, 2.6, 0, 0.6, 3.6, 0.2, 0.07, '#5a4a3a');
+  mb.limb(0, 2.8, 0, -0.5, 3.8, -0.3, 0.07, '#5a4a3a');
+  const greens = ['#4f7a35', '#5f8a3e', '#466e30'];
+  mb.sphere(1.5, greens[0], 0, 4.4, 0, 1.15, 0.85, 1.1, 1, 0.18);
+  mb.sphere(1.1, greens[1], 0.8, 4.0, 0.4, 1, 0.9, 1, 1, 0.18);
+  mb.sphere(1.1, greens[2], -0.8, 4.2, -0.3, 1, 0.9, 1, 1, 0.18);
+  mb.sphere(1.0, greens[1], 0.1, 5.2, -0.2, 1, 0.8, 1, 1, 0.18);
+  return mb.build();
+}
+
+export function willowGeo() {
+  const mb = new ModelBuilder();
+  mb.cyl(0.14, 0.22, 3.0, 7, '#4f4232', 0, 1.5, 0, 0.08);
+  const g = ['#7a9a44', '#88a64e', '#6a8a3c'];
+  mb.sphere(1.5, g[0], 0, 4.0, 0, 1.1, 0.7, 1.1, 1, 0.15);
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2;
+    mb.sphere(0.7, g[i % 3], Math.cos(a) * 1.25, 2.9, Math.sin(a) * 1.25, 0.6, 2.0, 0.6, 1, 0.1);
+  }
+  return mb.build();
+}
+
+export function poplarGeo() {
+  const mb = new ModelBuilder();
+  mb.cyl(0.1, 0.16, 4, 6, '#8a8478', 0, 2, 0);
+  mb.sphere(1.1, '#557a38', 0, 6.0, 0, 0.9, 3.0, 0.9, 1, 0.12);
+  return mb.build();
+}
+
+export function lampPoleGeo() {
+  const mb = new ModelBuilder();
+  mb.cyl(0.07, 0.11, 7.5, 8, '#8d9196', 0, 3.75, 0);
+  mb.cyl(0.18, 0.2, 0.5, 8, '#6b6e72', 0, 0.25, 0);
+  mb.limb(0, 7.2, 0, 0, 7.45, 1.6, 0.045, '#8d9196');
+  mb.box(0.3, 0.12, 0.6, '#6b6e72', 0, 7.42, 1.65);
+  return mb.build();
+}
+export function lampHeadGeo() {
+  const g = new THREE.BoxGeometry(0.24, 0.05, 0.5);
+  g.translate(0, 7.34, 1.65);
+  return g;
+}
+
+export function utilityPoleGeo() {
+  const mb = new ModelBuilder();
+  mb.cyl(0.11, 0.16, 9, 7, '#a7a49c', 0, 4.5, 0);
+  mb.box(1.7, 0.1, 0.1, '#8a8780', 0, 8.4, 0);
+  mb.box(1.0, 0.08, 0.08, '#8a8780', 0, 7.6, 0);
+  for (const x of [-0.7, 0, 0.7]) mb.cyl(0.04, 0.05, 0.12, 6, '#e8e6df', x, 8.5, 0);
+  if (Math.random() < 1) mb.cyl(0.22, 0.22, 0.6, 8, '#6f7377', 0.35, 6.8, 0); // 变压器/接线盒
+  return mb.build();
+}
+
+export function binGeo() {
+  const mb = new ModelBuilder();
+  mb.box(0.5, 0.8, 0.5, '#2f7d4a', 0, 0.4, 0);
+  mb.box(0.54, 0.08, 0.54, '#25603a', 0, 0.84, 0);
+  return mb.build();
+}
+
+export function tableSetGeo(color) {
+  const mb = new ModelBuilder();
+  mb.box(0.9, 0.04, 0.9, color, 0, 0.72, 0);
+  for (const x of [-0.4, 0.4]) for (const z of [-0.4, 0.4]) mb.cyl(0.02, 0.02, 0.72, 4, '#888', x, 0.36, z);
+  const stools = [[0, 0.75], [0, -0.75], [0.75, 0], [-0.75, 0]];
+  for (const [x, z] of stools) {
+    mb.cyl(0.16, 0.18, 0.04, 8, color, x, 0.45, z);
+    mb.cyl(0.14, 0.2, 0.43, 8, shadeHex(color, 0.85), x, 0.22, z);
+  }
+  return mb.build();
+}
+
+export function lanternGeo() {
+  const mb = new ModelBuilder();
+  mb.sphere(0.24, '#c81e1e', 0, 0, 0, 1, 0.85, 1, 1);
+  mb.cyl(0.1, 0.1, 0.05, 8, '#e2b33a', 0, 0.21, 0);
+  mb.cyl(0.1, 0.1, 0.05, 8, '#e2b33a', 0, -0.21, 0);
+  mb.box(0.02, 0.3, 0.02, '#e2b33a', 0, -0.38, 0);
+  return mb.build();
+}
+
+export function solarGeo() {
+  const mb = new ModelBuilder();
+  mb.cyl(0.22, 0.22, 1.9, 8, '#d9dcdf', 0, 1.25, -0.2, 0, 0, Math.PI / 2);
+  for (let i = 0; i < 8; i++) mb.box(0.13, 0.07, 1.6, i % 2 ? '#2a3644' : '#1b2430', -0.82 + i * 0.235, 0.7, 0.45, -1.0);
+  mb.box(1.95, 0.04, 0.04, '#9aa0a6', 0, 0.12, 1.05);
+  for (const x of [-0.95, 0.95]) {
+    mb.limb(x, 0, 1.05, x, 1.25, -0.2, 0.025, '#9aa0a6', 3);
+    mb.limb(x, 0, -0.2, x, 1.05, -0.2, 0.025, '#9aa0a6', 3);
+  }
+  return mb.build();
+}
+
+export function tankGeo() {
+  const mb = new ModelBuilder();
+  mb.cyl(0.6, 0.6, 1.4, 14, '#3f74b5', 0, 1.1, 0);
+  mb.cyl(0.15, 0.6, 0.15, 14, '#3f74b5', 0, 1.87, 0);
+  for (const x of [-0.4, 0.4]) mb.box(0.08, 0.4, 1.2, '#7a7a7a', x, 0.2, 0);
+  return mb.build();
+}
+
+export function benchGeo() {
+  const mb = new ModelBuilder();
+  mb.box(1.6, 0.05, 0.42, '#8a6240', 0, 0.45, 0);
+  mb.box(1.6, 0.3, 0.04, '#8a6240', 0, 0.72, -0.2, -0.15);
+  for (const x of [-0.7, 0.7]) mb.box(0.06, 0.45, 0.4, '#3a3a3a', x, 0.22, 0);
+  return mb.build();
+}
+
+export function greenhouseGeo() {
+  const g = new THREE.CylinderGeometry(2.6, 2.6, 30, 12, 1, true, -Math.PI / 2, Math.PI);
+  g.rotateX(-Math.PI / 2);
+  g.scale(1, 0.85, 1);
+  const mb = new ModelBuilder();
+  mb.add(g, '#e4ebee');
+  return mb.build();
+}
+
+export function haystackGeo() {
+  const mb = new ModelBuilder();
+  mb.sphere(1.2, '#c9a95a', 0, 0.8, 0, 1, 0.9, 1, 1, 0.15);
+  return mb.build();
+}
+
+export function flagpoleGeo() {
+  const mb = new ModelBuilder();
+  mb.cyl(0.05, 0.08, 12, 8, '#d9dcdf', 0, 6, 0);
+  mb.cyl(0.6, 0.8, 0.5, 10, '#c9c4ba', 0, 0.25, 0);
+  return mb.build();
+}
+
+function shadeHex(h, k) {
+  const c = new THREE.Color(h);
+  c.multiplyScalar(k);
+  return '#' + c.getHexString();
+}

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>小镇青年模拟器</title>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">{ "imports": { "three": "./lib/three.module.js" } }</script>
+</head>
+<body>
+<canvas id="game" tabindex="0"></canvas>
+
+<div id="hud">
+  <div id="where">
+    <div class="town">青石镇</div>
+    <div id="place">人民路</div>
+    <div id="tod">上午</div>
+  </div>
+  <canvas id="minimap" width="200" height="200"></canvas>
+  <canvas id="speedo" width="170" height="170"></canvas>
+  <div id="help">
+    <b>操作</b>
+    <span><kbd>W</kbd><kbd>↑</kbd> 加速</span>
+    <span><kbd>S</kbd><kbd>↓</kbd> 刹车 / 倒车</span>
+    <span><kbd>A</kbd><kbd>D</kbd> 转向</span>
+    <span><kbd>空格</kbd> 急刹</span>
+    <span><kbd>H</kbd> 按喇叭</span>
+    <span><kbd>C</kbd> 切换镜头</span>
+    <span><kbd>T</kbd> 切换时间</span>
+    <span><kbd>B</kbd> 挡风被</span>
+    <span><kbd>M</kbd> 大地图</span>
+    <span><kbd>R</kbd> 回到起点</span>
+    <span>鼠标拖动 环顾四周</span>
+    <span class="dim"><kbd>I</kbd> 隐藏帮助</span>
+  </div>
+  <div id="toast"></div>
+</div>
+
+<div id="bigmap"><canvas id="bigmapCanvas" width="660" height="660"></canvas><p>青石镇地图（按 M 关闭）</p></div>
+
+<div id="touch">
+  <div class="left">
+    <button data-key="KeyA">◀</button>
+    <button data-key="KeyD">▶</button>
+  </div>
+  <div class="right">
+    <button data-key="KeyH" class="small">喇叭</button>
+    <button data-key="KeyS">刹</button>
+    <button data-key="KeyW" class="gas">油</button>
+  </div>
+</div>
+
+<div id="loading"><h1>小镇青年模拟器</h1><p>正在生成青石镇……</p></div>
+<div id="start">
+  <div class="card">
+    <h1>小镇青年模拟器</h1>
+    <p class="sub">青石镇 · 骑上你的小电驴，在镇上随便转转</p>
+    <p>沿着人民路往东是农贸市场，往北有中心小学，<br>往南过了青石桥就是河对岸的村子。<br>文化广场上的阿姨们已经开始跳广场舞了。</p>
+    <button id="goBtn">骑上车，出发</button>
+    <p class="dim">WASD / 方向键骑车 · 按 Enter 开始</p>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
