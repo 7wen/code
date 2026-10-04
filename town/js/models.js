@@ -15,8 +15,8 @@ function rider(mb, c, oz = 0, oy = 0, hands = 0.37) {
     mb.limb(s * 0.25, 1.2 + oy, -0.05 + oz, s * 0.27, 1.02 + oy, hands + oz, 0.048, c.shortSleeve ? skin : top);
     if (c.shortSleeve) mb.limb(s * 0.21, 1.42 + oy, -0.28 + oz, s * 0.235, 1.3 + oy, -0.17 + oz, 0.068, top);
     if (c.stripe) {
-      mb.limb(s * 0.17, 0.97 + oy, -0.32 + oz, s * 0.22, 1.02 + oy, 0.06 + oz, 0.012, c.stripe, 4);
-      mb.limb(s * 0.22, 1.02 + oy, 0.06 + oz, s * 0.195, 0.47 + oy, 0.12 + oz, 0.012, c.stripe, 4);
+      mb.limb(s * 0.17, 0.97 + oy, -0.32 + oz, s * 0.222, 1.02 + oy, 0.06 + oz, 0.007, c.stripe, 4);
+      mb.limb(s * 0.205, 1.02 + oy, 0.06 + oz, s * 0.185, 0.47 + oy, 0.12 + oz, 0.007, c.stripe, 4);
     }
     mb.sphere(0.045, skin, s * 0.27, 1.02 + oy, hands + oz, 1, 1, 1, 0);
   }
@@ -32,6 +32,51 @@ function rider(mb, c, oz = 0, oy = 0, hands = 0.37) {
     mb.box(0.15, 0.03, 0.012, '#151515', 0, 1.62 + oy, -0.137 + oz);
     for (const s of [-1, 1]) mb.box(0.012, 0.012, 0.12, '#151515', s * 0.1, 1.625 + oy, -0.2 + oz);
   }
+}
+
+
+// 按位置合并法线，夹角小于 crease 的面平滑过渡（挤出体看起来圆润）
+function smoothNormals(geo, crease = 0.6) {
+  const g = geo;
+  const pos = g.attributes.position, nor = g.attributes.normal;
+  const idx = g.index;
+  const n = idx ? idx.count : pos.count;
+  const get = (i) => (idx ? idx.getX(i) : i);
+  const faceN = [];
+  const va = new THREE.Vector3(), vb = new THREE.Vector3(), vc = new THREE.Vector3();
+  for (let i = 0; i < n; i += 3) {
+    va.fromBufferAttribute(pos, get(i)); vb.fromBufferAttribute(pos, get(i + 1)); vc.fromBufferAttribute(pos, get(i + 2));
+    faceN.push(vc.sub(vb).cross(va.sub(vb)).normalize().clone());
+  }
+  const key = (i) => `${pos.getX(i).toFixed(4)},${pos.getY(i).toFixed(4)},${pos.getZ(i).toFixed(4)}`;
+  const buckets = new Map();
+  for (let i = 0; i < n; i++) {
+    const k = key(get(i));
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(i);
+  }
+  const out = new Float32Array(n * 3);
+  const cos = Math.cos(crease);
+  const acc = new THREE.Vector3();
+  for (const list of buckets.values()) {
+    for (const i of list) {
+      const fi = faceN[(i / 3) | 0];
+      acc.set(0, 0, 0);
+      for (const j of list) { const fj = faceN[(j / 3) | 0]; if (fi.dot(fj) >= cos) acc.add(fj); }
+      acc.normalize();
+      out[i * 3] = acc.x; out[i * 3 + 1] = acc.y; out[i * 3 + 2] = acc.z;
+    }
+  }
+  // 展开成非索引几何，写回法线
+  if (idx) {
+    const ng = g.toNonIndexed();
+    g.setIndex(null);
+    g.setAttribute('position', ng.attributes.position);
+    if (ng.attributes.uv) g.setAttribute('uv', ng.attributes.uv);
+  }
+  g.setAttribute('normal', new THREE.BufferAttribute(out, 3));
+  g.clearGroups();
+  return g;
 }
 
 // ---------------- 玩家的助动车（运动款“鬼火”） ----------------
@@ -91,34 +136,101 @@ export function buildPlayerScooter(M) {
   limb(lean, [0.1, R + 0.05, -0.62], [0.1, 0.74, -0.42], 0.022, GOLD);
   for (let i = 0; i < 7; i++) add(lean, new THREE.TorusGeometry(0.035, 0.008, 4, 10), RED, 0.1, R + 0.12 + i * 0.05, -0.59 + i * 0.026, Math.PI / 2 - 0.45);
 
-  // 车身
-  add(lean, B(0.3, 0.16, 0.62), BODY, 0, 0.33, 0.04);           // 底盘
-  add(lean, B(0.34, 0.05, 0.5), RUBBER, 0, 0.43, 0.06);          // 脚踏板
-  for (let i = 0; i < 6; i++) add(lean, B(0.3, 0.012, 0.02), MATTE, 0, 0.457, -0.15 + i * 0.08);
-  add(lean, B(0.36, 0.32, 0.8), BODY, 0, 0.62, -0.47);           // 座下车壳
-  add(lean, B(0.37, 0.08, 0.82), GLOSS, 0, 0.46, -0.47);          // 下沿黑色饰板
-  add(lean, B(0.3, 0.2, 0.55), BODY, 0, 0.82, -0.82, 0.38);       // 上翘的尾巴
-  add(lean, B(0.22, 0.1, 0.32), BODY, 0, 0.98, -1.1, 0.55);
-  add(lean, B(0.16, 0.05, 0.04), TAIL, 0, 1.06, -1.25, 0.55);     // 尾灯
+  // 车身：侧面轮廓曲线挤出 + 圆角倒边，做出流线型车壳
+  // 轮廓坐标 (z 前后, y 高度)，沿 x 方向挤出 width，居中
+  const ext = (draw, width, mat, bevel = 0.04, x = 0) => {
+    const sh = new THREE.Shape();
+    draw(sh);
+    const g = new THREE.ExtrudeGeometry(sh, {
+      depth: width, curveSegments: 20, bevelEnabled: bevel > 0,
+      bevelThickness: bevel, bevelSize: bevel * 0.8, bevelSegments: 5,
+    });
+    g.translate(0, 0, -width / 2);
+    g.rotateY(-Math.PI / 2);
+    g.translate(x, 0, 0);
+    smoothNormals(g);
+    const m = new THREE.Mesh(g, mat);
+    m.castShadow = true;
+    lean.add(m);
+    return m;
+  };
+  const strip = (a, b, s) => limb(lean, [s * a[0], a[1], a[2]], [s * b[0], b[1], b[2]], 0.009, LED, 5);
+
+  // 座下主车壳：前沿向后上方扫，尾巴一路上翘到尖
+  ext((p) => {
+    p.moveTo(-0.16, 0.40);
+    p.bezierCurveTo(-0.19, 0.62, -0.24, 0.78, -0.36, 0.82);
+    p.lineTo(-0.66, 0.84);
+    p.bezierCurveTo(-0.86, 0.88, -1.04, 0.99, -1.25, 1.09);
+    p.quadraticCurveTo(-1.27, 1.04, -1.22, 1.0);
+    p.bezierCurveTo(-1.06, 0.92, -0.96, 0.8, -0.88, 0.71);
+    p.quadraticCurveTo(-0.68, 0.65, -0.5, 0.57);
+    p.quadraticCurveTo(-0.3, 0.43, -0.16, 0.40);
+  }, 0.27, BODY, 0.045);
+  // 下半截黑色亮面饰板，斜线分色
+  ext((p) => {
+    p.moveTo(-0.15, 0.39);
+    p.lineTo(-0.25, 0.6);
+    p.lineTo(-0.84, 0.72);
+    p.quadraticCurveTo(-0.66, 0.63, -0.5, 0.56);
+    p.quadraticCurveTo(-0.3, 0.42, -0.15, 0.39);
+  }, 0.3, GLOSS, 0.04);
   for (const s of [-1, 1]) {
-    add(lean, B(0.06, 0.03, 0.04), std(0xffa21a, { emissive: 0xff8000, emissiveIntensity: 0.25 }), s * 0.13, 0.98, -1.2, 0.55);
-    add(lean, B(0.012, 0.022, 0.78), LED, s * 0.187, 0.51, -0.47); // 侧面氛围灯
-    add(lean, B(0.01, 0.02, 0.5), LED, s * 0.155, 0.88, -0.83, 0.38);
-    // 尾部棱线
-    add(lean, B(0.02, 0.03, 0.5), GLOSS, s * 0.15, 0.93, -0.83, 0.38);
+    strip([0.2, 0.6, -0.25], [0.2, 0.72, -0.84], s);   // 分色线上的氛围灯
+    strip([0.165, 0.9, -0.9], [0.13, 1.04, -1.2], s);   // 尾巴两侧
   }
-  add(lean, B(0.36, 0.035, 0.02), LED, 0, 0.27, 0.36);             // 底部蓝光
-  // 座垫（分体，后座高一点）
-  add(lean, B(0.3, 0.1, 0.5), RUBBER, 0, 0.83, -0.35);
-  add(lean, B(0.26, 0.09, 0.34), RUBBER, 0, 0.93, -0.74, 0.18);
-  // 后挡泥 + 车牌
-  add(lean, B(0.14, 0.03, 0.42), GLOSS, 0, R + 0.2, -0.82, 0.5);
-  add(lean, B(0.18, 0.11, 0.01), std(0xeef2f6), 0, 0.5, -1.03, 0.25);
-  add(lean, B(0.17, 0.02, 0.012), std(0x1f5fa8), 0, 0.54, -1.035, 0.25);
-  // 前护板（固定在车身上）
-  add(lean, B(0.44, 0.58, 0.07), BODY, 0, 0.7, 0.38, -0.32);
-  add(lean, B(0.4, 0.5, 0.03), MATTE, 0, 0.68, 0.33, -0.32);
-  for (const s of [-1, 1]) add(lean, B(0.012, 0.5, 0.02), LED, s * 0.222, 0.7, 0.4, -0.32);
+  // 座垫：前低后高的分体座
+  ext((p) => {
+    p.moveTo(-0.24, 0.84);
+    p.quadraticCurveTo(-0.25, 0.94, -0.36, 0.94);
+    p.lineTo(-0.62, 0.93);
+    p.quadraticCurveTo(-0.7, 0.93, -0.73, 0.99);
+    p.lineTo(-0.97, 1.06);
+    p.quadraticCurveTo(-1.03, 1.06, -1.0, 1.0);
+    p.lineTo(-0.66, 0.86);
+    p.lineTo(-0.36, 0.83);
+  }, 0.22, RUBBER, 0.04);
+  // 尾灯、转向灯、车牌
+  add(lean, B(0.17, 0.035, 0.05), TAIL, 0, 1.06, -1.255, 0.9);
+  for (const s of [-1, 1]) add(lean, B(0.05, 0.03, 0.05), std(0xffa21a, { emissive: 0xff8000, emissiveIntensity: 0.25 }), s * 0.11, 1.0, -1.2, 0.9);
+  limb(lean, [0, 0.98, -1.12], [0, 0.66, -1.12], 0.012, GLOSS, 5);
+  add(lean, B(0.18, 0.11, 0.01), std(0xeef2f6), 0, 0.62, -1.13, 0.15);
+  add(lean, B(0.17, 0.02, 0.012), std(0x1f5fa8), 0, 0.66, -1.136, 0.15);
+  add(lean, B(0.12, 0.025, 0.4), GLOSS, 0, R + 0.18, -0.8, 0.45); // 后挡泥
+
+  // 底盘 + 脚踏板
+  ext((p) => {
+    p.moveTo(0.3, 0.3); p.lineTo(-0.2, 0.3); p.quadraticCurveTo(-0.26, 0.3, -0.24, 0.42);
+    p.lineTo(0.32, 0.42); p.quadraticCurveTo(0.36, 0.36, 0.3, 0.3);
+  }, 0.26, BODY, 0.03);
+  add(lean, B(0.32, 0.03, 0.48), RUBBER, 0, 0.445, 0.06);
+  for (let i = 0; i < 6; i++) add(lean, B(0.28, 0.01, 0.02), MATTE, 0, 0.463, -0.14 + i * 0.08);
+  add(lean, B(0.32, 0.03, 0.02), LED, 0, 0.29, 0.3);                // 底部蓝光
+
+  // 前护板 + 车头：从脚踏板前沿一路弧形扫到上翘的车鼻
+  ext((p) => {
+    p.moveTo(0.27, 0.36);
+    p.quadraticCurveTo(0.46, 0.39, 0.55, 0.6);
+    p.bezierCurveTo(0.63, 0.79, 0.67, 0.92, 0.61, 1.03);
+    p.quadraticCurveTo(0.55, 1.08, 0.47, 1.06);
+    p.bezierCurveTo(0.4, 0.95, 0.3, 0.8, 0.26, 0.52);
+  }, 0.34, BODY, 0.055);
+  // 车鼻下方黑色导流
+  ext((p) => {
+    p.moveTo(0.5, 0.52); p.quadraticCurveTo(0.6, 0.66, 0.63, 0.82); p.lineTo(0.58, 0.8); p.quadraticCurveTo(0.55, 0.66, 0.47, 0.54);
+  }, 0.3, GLOSS, 0.03);
+  // 内侧护板（骑手腿前面）
+  ext((p) => {
+    p.moveTo(0.25, 0.44); p.bezierCurveTo(0.29, 0.75, 0.37, 0.93, 0.45, 1.04); p.lineTo(0.42, 1.04); p.bezierCurveTo(0.34, 0.93, 0.26, 0.75, 0.22, 0.44);
+  }, 0.36, MATTE, 0.02);
+  // 双眼大灯（贴着车鼻斜面）+ 眉灯
+  const headlight = add(lean, B(0.12, 0.045, 0.03), HEAD, 0.095, 0.95, 0.655, -0.45, 0.35);
+  add(lean, B(0.12, 0.045, 0.03), HEAD, -0.095, 0.95, 0.655, -0.45, -0.35);
+  add(lean, B(0.24, 0.012, 0.02), LED, 0, 1.01, 0.645, -0.6);
+  for (const s of [-1, 1]) {
+    add(lean, B(0.05, 0.03, 0.04), std(0xffa21a, { emissive: 0xff8000, emissiveIntensity: 0.25 }), s * 0.2, 0.86, 0.62, -0.45, s * 0.3);
+    strip([0.235, 0.62, 0.56], [0.235, 0.98, 0.6], s);  // 前护板侧边灯条
+  }
 
   // 车头（转向）
   const fork = new THREE.Group();
@@ -132,13 +244,6 @@ export function buildPlayerScooter(M) {
     limb(fork, [s * 0.085, 0.62, -0.02], [s * 0.085, 1.0, -0.14], 0.022, CHROME);
   }
   add(fork, B(0.13, 0.035, 0.42), BODY, 0, R + 0.17, 0.1, -0.1); // 前挡泥
-  // 车头罩 + 双眼大灯
-  add(fork, B(0.44, 0.24, 0.32), BODY, 0, 1.0, -0.06, -0.3);
-  add(fork, B(0.36, 0.09, 0.2), GLOSS, 0, 0.88, 0.04, -0.5);
-  const headlight = add(fork, B(0.13, 0.05, 0.03), HEAD, 0.1, 0.98, 0.1, -0.3, 0.32);
-  add(fork, B(0.13, 0.05, 0.03), HEAD, -0.1, 0.98, 0.1, -0.3, -0.32);
-  add(fork, B(0.3, 0.014, 0.02), LED, 0, 1.06, 0.07, -0.3);
-  for (const s of [-1, 1]) add(fork, B(0.05, 0.03, 0.04), std(0xffa21a, { emissive: 0xff8000, emissiveIntensity: 0.25 }), s * 0.21, 0.97, 0.02, -0.3);
   // 裸露车把、仪表、后视镜
   limb(fork, [-0.34, 1.13, -0.2], [0.34, 1.13, -0.2], 0.016, GLOSS);
   for (const s of [-1, 1]) {
@@ -175,7 +280,12 @@ export function buildPlayerScooter(M) {
   const riderHelmet = mk('#f2c230');
   riderHelmet.visible = false;
 
-  return { root, lean, fork, frontWheel, rearWheel, quilt, tail: { material: TAIL }, headlight, ledMat: LED, riderBare, riderHelmet };
+  // 车底蓝色氛围光（傍晚、夜里才亮）
+  const glow = new THREE.PointLight(0x3a62ff, 0, 3.2, 1.6);
+  glow.position.set(0, 0.25, -0.1);
+  lean.add(glow);
+
+  return { root, lean, fork, frontWheel, rearWheel, quilt, tail: { material: TAIL }, headlight, ledMat: LED, glow, riderBare, riderHelmet };
 }
 
 // ---------------- NPC 车辆 ----------------

@@ -90,6 +90,7 @@ function applyTOD(a, b, t) {
   player.m.headlight.material.emissiveIntensity = 0.4 + n('head') / 30;
   player.tailBase = 0.3 + n('car');
   player.m.ledMat.emissiveIntensity = 0.8 + n('car') * 1.2;
+  player.m.glow.intensity = n('car') * 1.5;
   traffic.setNight(n('car'), 0.2 + n('car'));
   renderer.toneMappingExposure = n('exp');
 }
