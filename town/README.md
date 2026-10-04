@@ -4,15 +4,23 @@
 
 ## 运行
 
-浏览器的 ES Module 不能直接从 `file://` 加载，需要起一个本地静态服务器：
+**最简单：直接双击 `play.html`**，用浏览器（Chrome / Edge / Firefox / Safari）打开就能玩。它是一个单文件，所有代码和 three.js 都打包在里面，不需要服务器，也不需要联网。
+
+> 注意：直接双击 `index.html` 打不开（会一直停在“正在生成青石镇……”）。浏览器禁止从 `file://` 加载 ES Module，`index.html` 是开发版，要配合本地服务器：
+>
+> ```bash
+> cd town
+> python3 -m http.server 8000
+> # 然后打开 http://localhost:8000
+> ```
+
+改了 `js/` 里的代码之后，重新生成 `play.html`：
 
 ```bash
 cd town
-python3 -m http.server 8000
-# 然后打开 http://localhost:8000
+npm i --no-save esbuild
+node build.mjs
 ```
-
-不需要安装依赖，Three.js 已经放在 `lib/` 里（r186，MIT 协议）。
 
 ## 操作
 
