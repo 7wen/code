@@ -89,6 +89,7 @@ function applyTOD(a, b, t) {
   player.headlight.intensity = n('head');
   player.m.headlight.material.emissiveIntensity = 0.4 + n('head') / 30;
   player.tailBase = 0.3 + n('car');
+  player.m.ledMat.emissiveIntensity = 0.8 + n('car') * 1.2;
   traffic.setNight(n('car'), 0.2 + n('car'));
   renderer.toneMappingExposure = n('exp');
 }
@@ -118,6 +119,7 @@ const camLook = new THREE.Vector3();
 let camInit = false;
 
 function updateCamera(dt) {
+  if (state.camLock) return; // 调试：固定相机
   const p = player;
   const mode = CAM_MODES[state.camMode];
   const sp = Math.abs(p.v);
@@ -242,6 +244,7 @@ function step(dt) {
     if (input.pressed('KeyC')) { state.camMode = (state.camMode + 1) % CAM_MODES.length; hud.toast('镜头：' + CAM_MODES[state.camMode].name); camInit = false; }
     if (input.pressed('KeyT')) { setTOD((state.tod + 1) % TOD.length); hud.toast('时间：' + TOD[state.tod].name); }
     if (input.pressed('KeyB')) { player.m.quilt.visible = !player.m.quilt.visible; hud.toast(player.m.quilt.visible ? '挡风被：装上了，暖和' : '挡风被：拆了'); }
+    if (input.pressed('KeyG')) { const on = !player.m.riderHelmet.visible; player.m.riderHelmet.visible = on; player.m.riderBare.visible = !on; hud.toast(on ? '头盔：戴上了' : '头盔：摘了，吹吹风'); }
     if (input.pressed('KeyR')) { player.reset(W.spawn.x, W.spawn.z, W.spawn.h); camInit = false; hud.toast('回到人民路'); }
     if (input.pressed('KeyM')) hud.toggleBig();
     if (input.pressed('KeyI')) { state.helpOn = !state.helpOn; helpEl.classList.toggle('hide', !state.helpOn); }

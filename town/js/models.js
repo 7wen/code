@@ -12,7 +12,12 @@ function rider(mb, c, oz = 0, oy = 0, hands = 0.37) {
     mb.limb(s * 0.15, 0.98 + oy, 0.06 + oz, s * 0.13, 0.43 + oy, 0.12 + oz, 0.062, pants);
     mb.box(0.11, 0.08, 0.24, shoes, s * 0.13, 0.40 + oy, 0.17 + oz);
     mb.limb(s * 0.21, 1.42 + oy, -0.28 + oz, s * 0.25, 1.2 + oy, -0.05 + oz, 0.056, top);
-    mb.limb(s * 0.25, 1.2 + oy, -0.05 + oz, s * 0.27, 1.02 + oy, hands + oz, 0.048, top);
+    mb.limb(s * 0.25, 1.2 + oy, -0.05 + oz, s * 0.27, 1.02 + oy, hands + oz, 0.048, c.shortSleeve ? skin : top);
+    if (c.shortSleeve) mb.limb(s * 0.21, 1.42 + oy, -0.28 + oz, s * 0.235, 1.3 + oy, -0.17 + oz, 0.068, top);
+    if (c.stripe) {
+      mb.limb(s * 0.17, 0.97 + oy, -0.32 + oz, s * 0.22, 1.02 + oy, 0.06 + oz, 0.012, c.stripe, 4);
+      mb.limb(s * 0.22, 1.02 + oy, 0.06 + oz, s * 0.195, 0.47 + oy, 0.12 + oz, 0.012, c.stripe, 4);
+    }
     mb.sphere(0.045, skin, s * 0.27, 1.02 + oy, hands + oz, 1, 1, 1, 0);
   }
   mb.box(0.38, 0.52, 0.22, top, 0, 1.2 + oy, -0.33 + oz, 0.18);
@@ -21,21 +26,31 @@ function rider(mb, c, oz = 0, oy = 0, hands = 0.37) {
   if (helmet) {
     mb.sphere(0.135, helmet, 0, 1.66 + oy, -0.26 + oz, 1, 0.78, 1.08, 1);
   } else {
-    mb.sphere(0.115, c.hair || '#1d1a17', 0, 1.65 + oy, -0.27 + oz, 1, 0.7, 1.05, 1);
+    mb.sphere(0.118, c.hair || '#1d1a17', 0, 1.655 + oy, -0.255 + oz, 1, 0.74, 1.06, 1);
+  }
+  if (c.glasses) {
+    mb.box(0.15, 0.03, 0.012, '#151515', 0, 1.62 + oy, -0.137 + oz);
+    for (const s of [-1, 1]) mb.box(0.012, 0.012, 0.12, '#151515', s * 0.1, 1.625 + oy, -0.2 + oz);
   }
 }
 
-// ---------------- 玩家的助动车 ----------------
+// ---------------- 玩家的助动车（运动款“鬼火”） ----------------
+// 深蓝紫金属漆、棱角车壳、上翘的尾巴、裸露车把、金色前叉、红色后避震、蓝色氛围灯
 export function buildPlayerScooter(M) {
   const root = new THREE.Group();
   const lean = new THREE.Group();
   root.add(lean);
   const std = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, metalness: 0.08, ...o });
-  const BODY = std(0x2f63a8, { roughness: 0.35, metalness: 0.15 });
-  const DARK = std(0x2b2d30, { roughness: 0.7 });
-  const BLACK = std(0x141414, { roughness: 0.8 });
-  const METAL = std(0xb9bec3, { roughness: 0.3, metalness: 0.7 });
-  const WHITE = std(0xe9e7e2, { roughness: 0.4 });
+  const BODY = std(0x383c9e, { roughness: 0.3, metalness: 0.2 });
+  const GLOSS = std(0x101114, { roughness: 0.25, metalness: 0.3 });
+  const MATTE = std(0x1a1b1e, { roughness: 0.85 });
+  const RUBBER = std(0x0d0d0d, { roughness: 0.95 });
+  const CHROME = std(0xe2e6ea, { roughness: 0.25, metalness: 0.45 });
+  const GOLD = std(0xe0b43a, { roughness: 0.3, metalness: 0.4 });
+  const RED = std(0xc62828, { roughness: 0.4, metalness: 0.3 });
+  const LED = std(0x2a4dff, { emissive: 0x3a62ff, emissiveIntensity: 0.8 });
+  const HEAD = std(0xf4f6ff, { emissive: 0xeaf0ff, emissiveIntensity: 0.4 });
+  const TAIL = std(0x8a1010, { emissive: 0xff2010, emissiveIntensity: 0.3 });
   const add = (parent, geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => {
     const m = new THREE.Mesh(geo, mat);
     m.position.set(x, y, z);
@@ -45,72 +60,122 @@ export function buildPlayerScooter(M) {
     return m;
   };
   const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+  const limb = (parent, a, b, r, mat, seg = 8) => {
+    const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b);
+    const d = vb.clone().sub(va);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, d.length(), seg), mat);
+    m.position.copy(va).add(vb).multiplyScalar(0.5);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+    m.castShadow = true;
+    parent.add(m);
+    return m;
+  };
 
-  function wheel() {
+  const R = 0.29;
+  function wheel(motor) {
     const g = new THREE.Group();
-    add(g, new THREE.TorusGeometry(0.185, 0.058, 8, 22), BLACK, 0, 0, 0, 0, Math.PI / 2, 0);
-    add(g, new THREE.CylinderGeometry(0.13, 0.13, 0.08, 14), METAL, 0, 0, 0, 0, 0, Math.PI / 2);
-    for (let i = 0; i < 5; i++) add(g, B(0.02, 0.24, 0.03), DARK, 0, 0, 0, (i / 5) * Math.PI, 0, 0);
+    add(g, new THREE.TorusGeometry(R - 0.075, 0.075, 10, 26), RUBBER, 0, 0, 0, 0, Math.PI / 2, 0);
+    add(g, new THREE.CylinderGeometry(R - 0.1, R - 0.1, 0.07, 22, 1, true), GLOSS, 0, 0, 0, 0, 0, Math.PI / 2);
+    add(g, new THREE.TorusGeometry(R - 0.1, 0.008, 4, 26), RED, 0.036, 0, 0, 0, Math.PI / 2, 0); // 轮圈红线
+    for (let i = 0; i < 5; i++) add(g, B(0.03, R * 1.5, 0.035), GLOSS, 0, 0, 0, (i / 5) * Math.PI * 2, 0, 0).geometry.translate(0, R * 0.38, 0);
+    add(g, new THREE.CylinderGeometry(motor ? 0.11 : 0.05, motor ? 0.11 : 0.05, motor ? 0.13 : 0.1, 16), motor ? MATTE : CHROME, 0, 0, 0, 0, 0, Math.PI / 2);
+    add(g, new THREE.CylinderGeometry(0.13, 0.13, 0.008, 20), CHROME, motor ? -0.075 : 0.06, 0, 0, 0, 0, Math.PI / 2); // 刹车盘
     return g;
   }
-  const rearWheel = wheel();
-  rearWheel.position.set(0, 0.24, -0.62);
+  const rearWheel = wheel(true);
+  rearWheel.position.set(0, R, -0.68);
   lean.add(rearWheel);
 
+  // 后摇臂 + 红色避震
+  add(lean, B(0.05, 0.08, 0.5), MATTE, -0.1, 0.36, -0.46, -0.15);
+  limb(lean, [0.1, R + 0.05, -0.62], [0.1, 0.74, -0.42], 0.022, GOLD);
+  for (let i = 0; i < 7; i++) add(lean, new THREE.TorusGeometry(0.035, 0.008, 4, 10), RED, 0.1, R + 0.12 + i * 0.05, -0.59 + i * 0.026, Math.PI / 2 - 0.45);
+
   // 车身
-  add(lean, B(0.34, 0.34, 0.84), BODY, 0, 0.57, -0.47);
-  add(lean, B(0.3, 0.2, 0.26), BODY, 0, 0.6, -0.94, 0.45);
-  add(lean, B(0.36, 0.08, 0.86), DARK, 0, 0.38, -0.47);
-  add(lean, B(0.12, 0.14, 0.5), DARK, 0, 0.3, -0.62); // 电机/后叉
-  add(lean, B(0.34, 0.06, 0.52), DARK, 0, 0.34, 0.08);
-  add(lean, B(0.44, 0.72, 0.07), BODY, 0, 0.68, 0.41, -0.22);
-  add(lean, B(0.4, 0.62, 0.03), DARK, 0, 0.66, 0.36, -0.22);
-  add(lean, B(0.3, 0.11, 0.72), BLACK, 0, 0.79, -0.43);
-  add(lean, B(0.32, 0.03, 0.26), METAL, 0, 0.76, -0.93);
-  add(lean, B(0.38, 0.28, 0.34), DARK, 0, 0.93, -0.9);
-  add(lean, B(0.39, 0.03, 0.35), WHITE, 0, 1.0, -0.9);
-  const tail = add(lean, B(0.16, 0.05, 0.02), std(0x8a1010, { emissive: 0xff2010, emissiveIntensity: 0.3 }), 0, 0.68, -1.05);
-  add(lean, B(0.16, 0.1, 0.01), std(0xf2c230), 0, 0.5, -1.02, 0.45); // 车牌
+  add(lean, B(0.3, 0.16, 0.62), BODY, 0, 0.33, 0.04);           // 底盘
+  add(lean, B(0.34, 0.05, 0.5), RUBBER, 0, 0.43, 0.06);          // 脚踏板
+  for (let i = 0; i < 6; i++) add(lean, B(0.3, 0.012, 0.02), MATTE, 0, 0.457, -0.15 + i * 0.08);
+  add(lean, B(0.36, 0.32, 0.8), BODY, 0, 0.62, -0.47);           // 座下车壳
+  add(lean, B(0.37, 0.08, 0.82), GLOSS, 0, 0.46, -0.47);          // 下沿黑色饰板
+  add(lean, B(0.3, 0.2, 0.55), BODY, 0, 0.82, -0.82, 0.38);       // 上翘的尾巴
+  add(lean, B(0.22, 0.1, 0.32), BODY, 0, 0.98, -1.1, 0.55);
+  add(lean, B(0.16, 0.05, 0.04), TAIL, 0, 1.06, -1.25, 0.55);     // 尾灯
+  for (const s of [-1, 1]) {
+    add(lean, B(0.06, 0.03, 0.04), std(0xffa21a, { emissive: 0xff8000, emissiveIntensity: 0.25 }), s * 0.13, 0.98, -1.2, 0.55);
+    add(lean, B(0.012, 0.022, 0.78), LED, s * 0.187, 0.51, -0.47); // 侧面氛围灯
+    add(lean, B(0.01, 0.02, 0.5), LED, s * 0.155, 0.88, -0.83, 0.38);
+    // 尾部棱线
+    add(lean, B(0.02, 0.03, 0.5), GLOSS, s * 0.15, 0.93, -0.83, 0.38);
+  }
+  add(lean, B(0.36, 0.035, 0.02), LED, 0, 0.27, 0.36);             // 底部蓝光
+  // 座垫（分体，后座高一点）
+  add(lean, B(0.3, 0.1, 0.5), RUBBER, 0, 0.83, -0.35);
+  add(lean, B(0.26, 0.09, 0.34), RUBBER, 0, 0.93, -0.74, 0.18);
+  // 后挡泥 + 车牌
+  add(lean, B(0.14, 0.03, 0.42), GLOSS, 0, R + 0.2, -0.82, 0.5);
+  add(lean, B(0.18, 0.11, 0.01), std(0xeef2f6), 0, 0.5, -1.03, 0.25);
+  add(lean, B(0.17, 0.02, 0.012), std(0x1f5fa8), 0, 0.54, -1.035, 0.25);
+  // 前护板（固定在车身上）
+  add(lean, B(0.44, 0.58, 0.07), BODY, 0, 0.7, 0.38, -0.32);
+  add(lean, B(0.4, 0.5, 0.03), MATTE, 0, 0.68, 0.33, -0.32);
+  for (const s of [-1, 1]) add(lean, B(0.012, 0.5, 0.02), LED, s * 0.222, 0.7, 0.4, -0.32);
 
   // 车头（转向）
   const fork = new THREE.Group();
-  fork.position.set(0, 0, 0.62);
+  fork.position.set(0, 0, 0.66);
   lean.add(fork);
-  const frontWheel = wheel();
-  frontWheel.position.set(0, 0.24, 0.05);
+  const frontWheel = wheel(false);
+  frontWheel.position.set(0, R, 0.08);
   fork.add(frontWheel);
-  add(fork, B(0.14, 0.05, 0.42), BODY, 0, 0.5, 0.06);
-  for (const s of [-1, 1]) add(fork, new THREE.CylinderGeometry(0.022, 0.022, 0.42, 6), METAL, s * 0.07, 0.43, 0.0, -0.25);
-  add(fork, new THREE.CylinderGeometry(0.035, 0.035, 0.42, 6), DARK, 0, 0.8, -0.15, -0.35);
-  add(fork, B(0.46, 0.14, 0.2), BODY, 0, 1.0, -0.22);
-  add(fork, B(0.3, 0.06, 0.12), BLACK, 0, 1.08, -0.27); // 仪表
-  const headlight = add(fork, new THREE.CylinderGeometry(0.075, 0.08, 0.05, 14), std(0xfafaf2, { emissive: 0xfff6d8, emissiveIntensity: 0.4 }), 0, 0.98, -0.1, Math.PI / 2);
   for (const s of [-1, 1]) {
-    add(fork, new THREE.CylinderGeometry(0.022, 0.022, 0.14, 6), BLACK, s * 0.29, 0.995, -0.26, 0, 0, Math.PI / 2);
-    add(fork, new THREE.CylinderGeometry(0.008, 0.008, 0.26, 4), METAL, s * 0.2, 1.17, -0.25, 0, 0, s * -0.2);
-    add(fork, B(0.12, 0.07, 0.02), BLACK, s * 0.235, 1.3, -0.255);
-    add(fork, B(0.105, 0.055, 0.005), std(0x9fb2c4, { roughness: 0.1, metalness: 0.8 }), s * 0.235, 1.3, -0.267);
-    add(fork, B(0.05, 0.03, 0.04), std(0xffa21a, { emissive: 0xff8000, emissiveIntensity: 0.2 }), s * 0.21, 1.0, -0.12); // 转向灯
+    limb(fork, [s * 0.085, R, 0.08], [s * 0.085, 0.62, -0.02], 0.03, GOLD);
+    limb(fork, [s * 0.085, 0.62, -0.02], [s * 0.085, 1.0, -0.14], 0.022, CHROME);
   }
+  add(fork, B(0.13, 0.035, 0.42), BODY, 0, R + 0.17, 0.1, -0.1); // 前挡泥
+  // 车头罩 + 双眼大灯
+  add(fork, B(0.44, 0.24, 0.32), BODY, 0, 1.0, -0.06, -0.3);
+  add(fork, B(0.36, 0.09, 0.2), GLOSS, 0, 0.88, 0.04, -0.5);
+  const headlight = add(fork, B(0.13, 0.05, 0.03), HEAD, 0.1, 0.98, 0.1, -0.3, 0.32);
+  add(fork, B(0.13, 0.05, 0.03), HEAD, -0.1, 0.98, 0.1, -0.3, -0.32);
+  add(fork, B(0.3, 0.014, 0.02), LED, 0, 1.06, 0.07, -0.3);
+  for (const s of [-1, 1]) add(fork, B(0.05, 0.03, 0.04), std(0xffa21a, { emissive: 0xff8000, emissiveIntensity: 0.25 }), s * 0.21, 0.97, 0.02, -0.3);
+  // 裸露车把、仪表、后视镜
+  limb(fork, [-0.34, 1.13, -0.2], [0.34, 1.13, -0.2], 0.016, GLOSS);
+  for (const s of [-1, 1]) {
+    limb(fork, [s * 0.26, 1.13, -0.2], [s * 0.36, 1.13, -0.21], 0.024, RUBBER);
+    add(fork, new THREE.CylinderGeometry(0.02, 0.02, 0.03, 8), CHROME, s * 0.375, 1.13, -0.21, 0, 0, Math.PI / 2);
+    limb(fork, [s * 0.2, 1.14, -0.19], [s * 0.25, 1.36, -0.2], 0.007, CHROME, 4);
+    add(fork, B(0.13, 0.06, 0.02), GLOSS, s * 0.26, 1.38, -0.2, 0, s * 0.1);
+    add(fork, B(0.115, 0.048, 0.005), std(0x9fb2c4, { roughness: 0.1, metalness: 0.8 }), s * 0.26, 1.38, -0.212, 0, s * 0.1);
+  }
+  add(fork, B(0.18, 0.05, 0.11), GLOSS, 0, 1.16, -0.12, -0.5);
+  add(fork, B(0.13, 0.005, 0.07), LED, 0, 1.188, -0.12, -0.5);    // 液晶仪表
 
   // 挡风被（B 键切换）
   const quilt = new THREE.Group();
   lean.add(quilt);
-  add(quilt, B(0.7, 0.78, 0.06), M.plaid, 0, 0.7, 0.5, -0.22);
+  add(quilt, B(0.7, 0.78, 0.06), M.plaid, 0, 0.74, 0.48, -0.25);
   for (const s of [-1, 1]) {
-    add(quilt, B(0.06, 0.58, 0.5), M.plaid, s * 0.36, 0.7, 0.24, -0.1);
-    add(quilt, B(0.18, 0.16, 0.24), M.plaid, s * 0.3, 1.0, 0.36);
+    add(quilt, B(0.06, 0.58, 0.5), M.plaid, s * 0.36, 0.72, 0.22, -0.1);
+    add(quilt, B(0.18, 0.16, 0.24), M.plaid, s * 0.32, 1.12, 0.44);
   }
   quilt.visible = false;
 
-  // 骑手
-  const mb = new ModelBuilder();
-  rider(mb, { skin: '#d9a982', top: '#3c4450', pants: '#2f3b55', shoes: '#e6e6e2', helmet: '#f2c230' });
-  const riderMesh = new THREE.Mesh(mb.build(), M.vc);
-  riderMesh.castShadow = true;
-  lean.add(riderMesh);
+  // 骑手：橙色 T 恤、黑色运动裤、白鞋、眼镜。G 键切换头盔
+  const look = { skin: '#d9a982', top: '#e2582b', pants: '#17181b', shoes: '#f0f0ec', stripe: '#e8e8e4', shortSleeve: true, glasses: true };
+  const mk = (helmet) => {
+    const mb = new ModelBuilder();
+    rider(mb, { ...look, helmet }, 0.01, 0.07, 0.45);
+    const m = new THREE.Mesh(mb.build(), M.vc);
+    m.castShadow = true;
+    lean.add(m);
+    return m;
+  };
+  const riderBare = mk(null);
+  const riderHelmet = mk('#f2c230');
+  riderHelmet.visible = false;
 
-  return { root, lean, fork, frontWheel, rearWheel, quilt, tail, headlight };
+  return { root, lean, fork, frontWheel, rearWheel, quilt, tail: { material: TAIL }, headlight, ledMat: LED, riderBare, riderHelmet };
 }
 
 // ---------------- NPC 车辆 ----------------

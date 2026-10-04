@@ -73,6 +73,30 @@ export class Traffic {
     this.circles = [];
     this.headMat = new THREE.MeshStandardMaterial({ color: 0xfffbe8, emissive: 0xfff2cc, emissiveIntensity: 0 });
     this.tailMat = new THREE.MeshStandardMaterial({ color: 0x6a0d0d, emissive: 0xff1a0a, emissiveIntensity: 0.2 });
+    // 电动车的透明挡雨棚
+    this.canopyMat = new THREE.MeshStandardMaterial({ color: 0x7fb3e0, transparent: true, opacity: 0.38, roughness: 0.1, metalness: 0.1, side: THREE.DoubleSide, depthWrite: false });
+    this.canopyFrame = new THREE.MeshStandardMaterial({ color: 0x9aa0a6, roughness: 0.4, metalness: 0.6 });
+    this.canopyGeo = (() => {
+      const g = new THREE.BoxGeometry(0.78, 0.03, 1.55); g.translate(0, 2.02, -0.25);
+      const f = new THREE.BoxGeometry(0.74, 0.95, 0.02); f.rotateX(-0.28); f.translate(0, 1.55, 0.62);
+      const merged = [g, f].map((x) => x.toNonIndexed());
+      const pos = merged.flatMap((x) => [...x.attributes.position.array]);
+      const out = new THREE.BufferGeometry();
+      out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      out.computeVertexNormals();
+      return out;
+    })();
+    this.canopyPoles = (() => {
+      const parts = [];
+      for (const s of [-1, 1]) {
+        const p = new THREE.CylinderGeometry(0.012, 0.012, 1.0, 4); p.translate(s * 0.37, 1.5, -0.95); parts.push(p.toNonIndexed());
+        const q = new THREE.CylinderGeometry(0.012, 0.012, 0.5, 4); q.translate(s * 0.37, 1.78, 0.72); parts.push(q.toNonIndexed());
+      }
+      const out = new THREE.BufferGeometry();
+      out.setAttribute('position', new THREE.Float32BufferAttribute(parts.flatMap((x) => [...x.attributes.position.array]), 3));
+      out.computeVertexNormals();
+      return out;
+    })();
     this.roadPool = [];
     for (const r of L.ROADS) this.roadPool.push([r, ROAD_W[r.kind] * (Math.min(r.a1, 300) - Math.max(r.a0, -300)) / 100]);
     for (let i = 0; i < count; i++) this.spawn(W.spawn.x, W.spawn.z);
@@ -113,6 +137,9 @@ export class Traffic {
         const tl = new THREE.Mesh(lampGeo(T.len, T.wid, 0.8), this.tailMat);
         tl.rotation.y = Math.PI;
         mesh.add(hl, tl);
+      }
+      if (type === 'ebike' && rng.chance(0.4)) {
+        mesh.add(new THREE.Mesh(this.canopyGeo, this.canopyMat), new THREE.Mesh(this.canopyPoles, this.canopyFrame));
       }
       this.scene.add(mesh);
       const a = {

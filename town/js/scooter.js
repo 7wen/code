@@ -5,7 +5,7 @@ import { onRoad } from './layout.js';
 
 // 电动助动车：自行车运动学模型 + 过弯侧倾 + 简单碰撞
 export const MAX_SPEED = 12.5;      // 45 km/h
-const WHEELBASE = 1.28;
+const WHEELBASE = 1.42;
 const RADIUS = 0.5;
 
 export class Player {
@@ -118,7 +118,7 @@ export class Player {
     m.root.rotation.y = this.heading;
     m.lean.rotation.z = this.lean;
     m.fork.rotation.y = this.delta * 0.9;
-    const spin = (this.v / 0.24) * dt;
+    const spin = (this.v / 0.29) * dt;
     m.frontWheel.rotation.x += spin;
     m.rearWheel.rotation.x += spin;
   }
